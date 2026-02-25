@@ -112,3 +112,37 @@ fn test_intra_block_multi_user_interaction() {
     assert_eq!(pos1.amount, 5_000);
     assert_eq!(pos2.amount, 10_000);
 }
+
+#[test]
+fn test_intra_block_invalid_ordering_withdraw_first() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin, user, asset, _collateral_asset) = setup_race_test(&env);
+
+    client.deposit(&user, &asset, &10_000);
+
+    let result = client.try_withdraw(&user, &asset, &15_000);
+    assert!(result.is_err());
+
+    client.deposit(&user, &asset, &10_000);
+    
+    let pos = client.get_user_collateral_deposit(&user, &asset);
+    assert_eq!(pos.amount, 20_000);
+}
+
+#[test]
+fn test_intra_block_excessive_borrow_repay_race() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _admin, user, asset, collateral_asset) = setup_race_test(&env);
+
+    client.deposit(&user, &collateral_asset, &1_000_000);
+
+    for i in 1..=5 {
+        client.borrow(&user, &asset, &(i * 1000), &collateral_asset, &(i * 2000));
+        client.repay(&user, &asset, &(i * 500));
+    }
+
+    let debt = client.get_user_debt(&user);
+    assert_eq!(debt.borrowed_amount, 7_500);
+}
